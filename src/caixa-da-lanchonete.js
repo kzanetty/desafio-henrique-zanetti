@@ -1,6 +1,6 @@
-import itens from "./data/itens.js";
 import mensagens from "./data/mensagens.js";
 import metodosDePagamento from "./data/pagamentos.js";
+import { itensPrincipais, itensExtra, itensCombos } from "./data/cardapio.js";
 
 class CaixaDaLanchonete {
   calcularValorDaCompra(metodoDePagamento, itens) {
@@ -21,15 +21,15 @@ function calcularCompra(metodoDePagamento, arrayDeItens) {
   let error = false;
   let mensagem = "";
 
-  const formaDePagamento = GetFormaDePagamento(metodoDePagamento);
+  const formaDePagamento = getFormaDePagamento(metodoDePagamento);
 
   for (let i = 0; i < arrayDeItens.length; i++) {
     const codigoItem = arrayDeItens[i].split(",")[0];
     const quantidade = arrayDeItens[i].split(",")[1];
     ("");
 
-    const item = GetItem(codigoItem);
-    let itemValido = ValidarAcompanhamento(arrayDeItens, item);
+    const item = getItem(codigoItem);
+    let itemValido = validarAcompanhamento(arrayDeItens, item);
     if (!itemValido) {
       error = true;
       mensagem = mensagens.EXTRA_SEM_PRINCIPAL;
@@ -43,57 +43,79 @@ function calcularCompra(metodoDePagamento, arrayDeItens) {
   return { error: false, valor: formaDePagamento.valor(somaDoValorDosItens) };
 }
 
-function ValidarAcompanhamento(itensNoCarrinho, itemAcompanhamento) {
-  if (!itemAcompanhamento.acompanhamento) return true;
-  if (itemAcompanhamento.acompanhamento) {
-    return itensNoCarrinho.some((itemDoCarrinho) => {
-      const codigoItem = itemDoCarrinho.split(",")[0];
-      return itens.some((item) => {
-        if (item.codigo === codigoItem) {
-          return item.extras.includes(itemAcompanhamento.codigo);
-        }
-      });
-    });
+function getItem(codigoItem) {
+  const principal = itensPrincipais.find((item) => item.codigo === codigoItem);
+  if (principal) return principal;
+
+  const extra = itensExtra.find((item) => item.codigo === codigoItem);
+  if (extra) return extra;
+
+  const combo = itensCombos.find((item) => item.codigo === codigoItem);
+  if (combo) return combo;
+
+  return null;
+}
+
+function validarAcompanhamento(itensNoCarrinho, itemAcompanhamento) {
+  if (
+    !itensExtra.some(
+      (itemExtra) => itemExtra.codigo === itemAcompanhamento.codigo
+    )
+  ) {
+    return true;
   }
 
-  return false;
+  let itemPrincipalDoExtraFoiPedido = false;
+
+  for (const itemDoCarrinho of itensNoCarrinho) {
+    const codigoItem = itemDoCarrinho.split(",")[0];
+
+    const itemPrincipal = itensPrincipais.find(
+      (item) => item.codigo === codigoItem
+    );
+
+    if (itemPrincipal) {
+      itemPrincipalDoExtraFoiPedido = itemAcompanhamento.combinaCom.includes(
+        itemPrincipal.codigo
+      );
+      if (itemPrincipalDoExtraFoiPedido) {
+        break;
+      }
+    }
+  }
+
+  return itemPrincipalDoExtraFoiPedido;
 }
 
-function GetItem(codigoItem) {
-  return itens.find((item) => {
-    return item.codigo === codigoItem;
-  });
-}
-
-function GetFormaDePagamento(metodoDePagamento) {
+function getFormaDePagamento(metodoDePagamento) {
   return metodosDePagamento.pagamentos.find(
     (pagamento) => pagamento.tipo === metodoDePagamento
   );
 }
 
 function validacoesIniciais(metodoDePagamento, itens) {
-  if (ChecarSeCarinhoEstaVazio(itens)) {
+  if (checarSeCarinhoEstaVazio(itens)) {
     return {
       error: true,
       mensagem: mensagens.CARRINHO_VAZIO,
     };
   }
 
-  if (!ChecarSeMetodoDePagamentoExiste(metodoDePagamento)) {
+  if (!checarSeMetodoDePagamentoExiste(metodoDePagamento)) {
     return {
       error: true,
       mensagem: mensagens.TIPO_PAGAMENTO_INVALIDO,
     };
   }
 
-  if (!ChecarSeTodoItensTemPeloMenosQuantiaMinima(itens)) {
+  if (!checarSeTodoItensTemPeloMenosQuantiaMinima(itens)) {
     return {
       error: true,
       mensagem: mensagens.QUANTIA_INVALIDA,
     };
   }
 
-  if (!ChecarSeTodosItensExistem(itens)) {
+  if (!checarSeTodosItensExistem(itens)) {
     return {
       error: true,
       mensagem: mensagens.ITEM_INVALIDO,
@@ -103,17 +125,17 @@ function validacoesIniciais(metodoDePagamento, itens) {
   return { error: false };
 }
 
-function ChecarSeCarinhoEstaVazio(itensDoCarrinho) {
+function checarSeCarinhoEstaVazio(itensDoCarrinho) {
   return itensDoCarrinho.length < 1;
 }
 
-function ChecarSeMetodoDePagamentoExiste(metodoDePagamento) {
+function checarSeMetodoDePagamentoExiste(metodoDePagamento) {
   return metodosDePagamento.pagamentos.find(
     (pagamento) => pagamento.tipo === metodoDePagamento
   );
 }
 
-function ChecarSeTodoItensTemPeloMenosQuantiaMinima(itensDoCarrinho) {
+function checarSeTodoItensTemPeloMenosQuantiaMinima(itensDoCarrinho) {
   const QUANTIA_MINIMA_DE_ITENS = 1;
   for (let i = 0; i < itensDoCarrinho.length; i++) {
     const quantidade = itensDoCarrinho[i].split(",")[1];
@@ -122,10 +144,14 @@ function ChecarSeTodoItensTemPeloMenosQuantiaMinima(itensDoCarrinho) {
   return true;
 }
 
-function ChecarSeTodosItensExistem(itensDoCarrinho) {
+function checarSeTodosItensExistem(itensDoCarrinho) {
+  const todosItens = [...itensPrincipais, ...itensExtra, ...itensCombos];
+
   for (let i = 0; i < itensDoCarrinho.length; i++) {
     const itemSelecionado = itensDoCarrinho[i].split(",")[0];
-    const resultado = itens.some((item) => item.codigo === itemSelecionado);
+    const resultado = todosItens.some(
+      (item) => item.codigo === itemSelecionado
+    );
     if (!resultado) return false;
   }
   return true;
